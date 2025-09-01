@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>아카이브</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="fullscreen">
+  <div class="archive-container">
+    <div class="header">
+      <a href="home.html" class="back-btn">&larr; 홈으로</a>
+      <h1 class="archive-title">아카이브</h1>
+      <div id="admin-tools" style="display: none;">
+        <button id="add-folder-btn" class="admin-btn">폴더 추가</button>
+        <button id="add-file-btn" class="admin-btn">파일 추가</button>
+      </div>
+    </div>
+
+    <div id="archive-list">
+      <!-- 폴더와 파일 목록이 여기에 동적으로 추가됩니다 -->
+      <div class="folder-block">
+        <h2 class="folder-title">기본 폴더</h2>
+        <div class="file-list">
+          <div class="file-block">
+            <div class="file-name">예시 PDF 파일</div>
+            <div class="file-meta">
+              <span class="provided-by">제공: 관리자</span>
+              <a href="#" class="download-btn">다운로드</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+  </div>
+  
+  <div id="overlay" class="overlay" style="display: none;">
+    <div class="modal">
+      <div class="modal-content">
+        <span class="close-btn" id="close-modal">&times;</span>
+        <h3 id="modal-title"></h3>
+        <form id="admin-form">
+          <input type="text" id="input1" placeholder="" required>
+          <input type="text" id="input2" placeholder="" style="display: none;">
+          <button type="submit" id="submit-btn"></button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="archive_script.js"></script>
+</body>
+</html>
