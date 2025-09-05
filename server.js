@@ -1,83 +1,140 @@
-const express = require('express');
-const bodyParser = require('body-parser');
-const path = require('path');
-const fs = require('fs');
+const express = require("express");
+const cors = require("cors");
+const bodyParser = require("body-parser");
+const bcrypt = require("bcrypt");
+const {Pool} = require("pg");
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 
-// 사용자 데이터를 저장할 파일 경로
-const USERS_DB_PATH = path.join(__dirname, 'users.json');
+// DB 설정
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL, // Render PostgreSQL URL
+    ssl: {
+        rejectUnauthorized: false
+    }
+});
 
-// 미들웨어 설정
+// 미들웨어
+app.use(cors());
 app.use(bodyParser.json());
-app.use(express.static(path.join(__dirname, 'public')));
 
-// CORS 설정 (프런트엔드와 백엔드가 다른 포트에서 실행될 때 필요)
-app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header(
-        'Access-Control-Allow-Headers',
-        'Origin, X-Requested-With, Content-Type, Accept'
-    );
-    next();
-});
-
-// 사용자 데이터 불러오기
-const getUsers = () => {
-    try {
-        const data = fs.readFileSync(USERS_DB_PATH, 'utf8');
-        return JSON.parse(data);
-    } catch (err) {
-        return [];
-    }
-};
-
-// 사용자 데이터 저장
-const saveUsers = (users) => {
-    fs.writeFileSync(USERS_DB_PATH, JSON.stringify(users, null, 2), 'utf8');
-};
-
-// 회원가입 API
-app.post('/api/signup', (req, res) => {
+// ======= 회원가입 =======
+app.post("/signup", async (req, res) => {
     const {name, classNo, password} = req.body;
-    const users = getUsers();
-
-    if (users.some(u => u.classNo === classNo)) {
-        return res
-            .status(409)
-            .json({message: '이미 등록된 학년반번호입니다.'});
-    }
-
-    users.push({name, classNo, password});
-    saveUsers(users);
-
-    res
-        .status(201)
-        .json({message: '회원가입이 완료되었습니다.'});
-});
-
-// 로그인 API
-app.post('/api/login', (req, res) => {
-    const {classNo, password} = req.body;
-    const users = getUsers();
-    const user = users.find(u => u.classNo === classNo && u.password === password);
-
-    if (user) {
-        res.json({success: true, name: user.name, message: '로그인 성공'});
-    } else {
+    try {
+        const hashed = await bcrypt.hash(password, 10);
+        const exists = await pool.query(
+            "SELECT * FROM users WHERE classno=$1",
+            [classNo]
+        );
+        if (exists.rows.length) 
+            return res
+                .status(400)
+                .json({message: "이미 가입된 학번입니다."});
+        await pool.query(
+            "INSERT INTO users(name, classno, password) VALUES($1, $2, $3)",
+            [name, classNo, hashed]
+        );
+        res.json({message: "회원가입 완료"});
+    } catch (err) {
+        console.error(err);
         res
-            .status(401)
-            .json({success: false, message: '학년반번호 또는 비밀번호가 잘못되었습니다.'});
+            .status(500)
+            .json({message: "서버 오류"});
     }
 });
 
-// 루트 경로로 접속 시 index.html 제공
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+// ======= 로그인 =======
+app.post("/login", async (req, res) => {
+    const {classNo, password} = req.body;
+    try {
+        const userRes = await pool.query(
+            "SELECT * FROM users WHERE classno=$1",
+            [classNo]
+        );
+        if (!userRes.rows.length) 
+            return res
+                .status(400)
+                .json({message: "회원이 없습니다."});
+        
+        const user = userRes.rows[0];
+        const match = await bcrypt.compare(password, user.password);
+        if (!match) 
+            return res
+                .status(400)
+                .json({message: "비밀번호가 틀립니다."});
+        
+        res.json({
+            user: {
+                id: user.id,
+                name: user.name,
+                classNo: user.classno
+            }
+        });
+    } catch (err) {
+        console.error(err);
+        res
+            .status(500)
+            .json({message: "서버 오류"});
+    }
 });
 
-// 서버 시작
-app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
+// ======= 아카이브 불러오기 =======
+app.get("/archive", async (req, res) => {
+    try {
+        const foldersRes = await pool.query("SELECT * FROM folders ORDER BY id ASC");
+        const folders = await Promise.all(foldersRes.rows.map(async folder => {
+            const filesRes = await pool.query(
+                "SELECT * FROM files WHERE folder_id=$1 ORDER BY id ASC",
+                [folder.id]
+            );
+            return {
+                ...folder,
+                files: filesRes.rows
+            };
+        }));
+        res.json(folders);
+    } catch (err) {
+        console.error(err);
+        res
+            .status(500)
+            .json({message: "서버 오류"});
+    }
 });
+
+// ======= 폴더 추가 =======
+app.post("/archive/folder", async (req, res) => {
+    const {name} = req.body;
+    try {
+        await pool.query("INSERT INTO folders(name) VALUES($1)", [name]);
+        res.json({message: "폴더 추가 완료"});
+    } catch (err) {
+        console.error(err);
+        res
+            .status(500)
+            .json({message: "서버 오류"});
+    }
+});
+
+// ======= 파일 추가 =======
+app.post("/archive/file", async (req, res) => {
+    const {name, providedBy, folderId} = req.body;
+    try {
+        await pool.query(
+            "INSERT INTO files(name, providedby, folder_id) VALUES($1, $2, $3)",
+            [
+                name, providedBy, folderId || 1
+            ] // folderId 미입력 시 기본 폴더 1번
+        );
+        res.json({message: "파일 추가 완료"});
+    } catch (err) {
+        console.error(err);
+        res
+            .status(500)
+            .json({message: "서버 오류"});
+    }
+});
+
+// ======= 서버 시작 =======
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
