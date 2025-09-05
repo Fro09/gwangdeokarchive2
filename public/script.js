@@ -1,112 +1,120 @@
-document.addEventListener("DOMContentLoaded", () => {
-    const signupForm = document.getElementById("signupForm");
-    const loginForm = document.getElementById("loginForm");
-    const logoutBtn = document.getElementById("logoutBtn");
-    const welcomeMsg = document.getElementById("welcomeMsg");
+const API_URL = "https://gwangdeokarchive.onrender.com";
 
-    // API 호출을 위한 기본 URL (배포 환경에서는 Render URL로 변경)
-    const API_URL = 'http://localhost:3000';
+// 로그인 폼
+const loginForm = document.getElementById("loginForm");
+if (loginForm) {
+    loginForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const classNo = document
+            .getElementById("loginClassNo")
+            .value
+            .trim();
+        const password = document
+            .getElementById("loginPassword")
+            .value
+            .trim();
 
-    // 회원가입
-    if (signupForm) {
-        signupForm.addEventListener("submit", async (e) => {
-            e.preventDefault();
-            const name = document
-                .getElementById("signupName")
-                .value;
-            const classNo = document
-                .getElementById("signupClassNo")
-                .value;
-            const password = document
-                .getElementById("signupPassword")
-                .value;
-            const confirm = document
-                .getElementById("signupConfirm")
-                .value;
-
-            if (password !== confirm) {
-                alert("비밀번호가 일치하지 않습니다 ❌");
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_URL}/api/signup`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({name, classNo, password})
-                });
-
-                const result = await response.json();
-
-                if (response.status === 201) {
-                    alert("회원가입이 완료되었습니다 ✅");
-                    window.location.href = "index.html";
-                } else {
-                    alert(`오류: ${result.message}`);
-                }
-            } catch (error) {
-                alert("회원가입 중 오류가 발생했습니다 ❌");
-                console.error('Error:', error);
-            }
+        const res = await fetch(`${API_URL}/login`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({classNo, password})
         });
-    }
+        const data = await res.json();
+        if (res.ok) {
+            sessionStorage.setItem("user", JSON.stringify(data.user));
+            location.href = "home.html";
+        } else {
+            alert(data.message || "로그인 실패");
+        }
+    });
+}
 
-    // 로그인
-    if (loginForm) {
-        loginForm.addEventListener("submit", async (e) => {
-            e.preventDefault();
-            const classNo = document
-                .getElementById("loginClassNo")
-                .value;
-            const password = document
-                .getElementById("loginPassword")
-                .value;
+// 회원가입 폼
+const signupForm = document.getElementById("signupForm");
+if (signupForm) {
+    signupForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const name = document
+            .getElementById("signupName")
+            .value
+            .trim();
+        const classNo = document
+            .getElementById("signupClassNo")
+            .value
+            .trim();
+        const password = document
+            .getElementById("signupPassword")
+            .value
+            .trim();
+        const confirm = document
+            .getElementById("signupConfirm")
+            .value
+            .trim();
 
-            try {
-                const response = await fetch(`${API_URL}/api/login`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({classNo, password})
-                });
-
-                const result = await response.json();
-
-                if (result.success) {
-                    sessionStorage.setItem("isLoggedIn", "true");
-                    sessionStorage.setItem("currentUser", result.name);
-                    window.location.href = "home.html";
-                } else {
-                    alert(`로그인 실패: ${result.message}`);
-                }
-            } catch (error) {
-                alert("로그인 중 오류가 발생했습니다 ❌");
-                console.error('Error:', error);
-            }
+        if (password !== confirm) 
+            return alert("비밀번호가 일치하지 않습니다.");
+        
+        const res = await fetch(`${API_URL}/signup`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({name, classNo, password})
         });
-    }
-
-    // 홈 화면
-    if (welcomeMsg) {
-        const isLoggedIn = sessionStorage.getItem("isLoggedIn");
-        const currentUser = sessionStorage.getItem("currentUser");
-
-        if (!isLoggedIn) {
-            window.location.href = "index.html";
-            return;
+        const data = await res.json();
+        if (res.ok) {
+            alert("회원가입 완료");
+            location.href = "index.html";
+        } else {
+            alert(data.message || "회원가입 실패");
         }
-        welcomeMsg.textContent = `${currentUser}님 반갑습니다`;
+    });
+}
 
-        // 로그아웃 버튼
-        if (logoutBtn) {
-            logoutBtn.addEventListener('click', () => {
-                sessionStorage.removeItem("isLoggedIn");
-                sessionStorage.removeItem("currentUser");
-                window.location.href = "index.html";
-            });
-        }
-    }
-});
+// 홈 페이지
+const welcomeMsg = document.getElementById("welcomeMsg");
+if (welcomeMsg) {
+    const user = JSON.parse(sessionStorage.getItem("user"));
+    if (!user) 
+        location.href = "index.html";
+    welcomeMsg.textContent = `${user.name} 님 환영합니다`;
+}
+
+// 로그아웃
+const logoutBtn = document.getElementById("logoutBtn");
+if (logoutBtn) {
+    logoutBtn.addEventListener("click", () => {
+        sessionStorage.removeItem("user");
+        location.href = "index.html";
+    });
+}
+
+// 시간표 폼
+const infoForm = document.getElementById("infoForm");
+if (infoForm) {
+    infoForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const info = {
+            grade: document
+                .getElementById("grade")
+                .value
+                .trim(),
+            class: document
+                .getElementById("class")
+                .value
+                .trim(),
+            number: document
+                .getElementById("number")
+                .value
+                .trim(),
+            name: document
+                .getElementById("name")
+                .value
+                .trim()
+        };
+        sessionStorage.setItem("timetableUser", JSON.stringify(info));
+        alert("정보가 저장되었습니다.");
+    });
+}
